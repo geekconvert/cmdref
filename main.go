@@ -2,18 +2,20 @@ package main
 
 import (
 	"bytes"
+	"cmdref/api"
+	"cmdref/auth"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Item struct {
@@ -155,6 +157,32 @@ func main() {
 	cmd := os.Args[1]
 
 	switch cmd {
+	case "login":
+		if err := auth.Login();err != nil {
+			fmt.Println("Login failed:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Login successful")
+
+	case "whoami":
+		s, err := auth.LoadSession()
+		if err != nil {
+			fmt.Println("error:", err)
+			os.Exit(2)
+		}
+		if s == nil {
+			fmt.Println("Not logged in. Run: cmdref login")
+			return
+		}
+		fmt.Println("Logged in as:", s.Email)
+
+	case "logout":
+		if err:= auth.ClearSession(); err != nil {
+			fmt.Println("error:", err)
+			os.Exit(2)
+		}
+		fmt.Println("Logged out")
+
 	case "add":
 		fs := flag.NewFlagSet("add", flag.ExitOnError)
 		title := fs.String("title", "", "title for the command")
@@ -168,46 +196,39 @@ func main() {
 			os.Exit(2)
 		}
 
-		db, err := loadDB()
+		c := api.New()
+
+		var created Item
+		err := c.DoJSON("POST", "/v1/commands", map[string]any{
+			"title":   strings.TrimSpace(*title),
+			"command": strings.TrimSpace(*command),
+			"tags":    parseTags(*tags),
+			"notes":   strings.TrimSpace(*notes),
+		}, &created)
+
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
 
-		now := time.Now().Format(time.RFC3339)
-		item := Item{
-			ID:        db.NextID,
-			Title:     strings.TrimSpace(*title),
-			Command:   strings.TrimSpace(*command),
-			Tags:      parseTags(*tags),
-			Notes:     strings.TrimSpace(*notes),
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-
-		db.NextID++
-		db.Items = append(db.Items, item)
-
-		if err := saveDB(db); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(2)
-		}
-		fmt.Printf("Saved #%d: %s\n", item.ID, item.Title)
+		fmt.Printf("Saved #%d: %s\n", created.ID, created.Title)
 
 	case "list":
-		db, err := loadDB()
-		if err != nil {
+		c := api.New()
+		var items []Item
+		if err := c.DoJSON("GET", "/v1/commands", nil, &items); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		if len(db.Items) == 0 {
+		if len(items) == 0 {
 			fmt.Println("(empty) add one with: cmdref add --title ... --cmd ...")
 			return
 		}
-		// stable order by ID
-		sort.Slice(db.Items, func(i, j int) bool { return db.Items[i].ID < db.Items[j].ID })
-		for _, it := range db.Items {
-			tagStr := ""
+		// stable order by ID (backend already does it, but safe)
+		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+
+		for _, it := range items{
+			tagStr  := ""
 			if len(it.Tags) > 0 {
 				tagStr = " [" + strings.Join(it.Tags, ",") + "]"
 			}
@@ -219,26 +240,31 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error: search requires a query")
 			os.Exit(2)
 		}
-		q := strings.ToLower(strings.Join(os.Args[2:], " "))
-		db, err := loadDB()
-		if err != nil {
+
+		query := strings.TrimSpace(strings.Join(os.Args[2:], " "))
+		q := url.QueryEscape(query)
+
+		c := api.New()
+
+		var items []Item
+		if err := c.DoJSON("GET", "/v1/commands?q="+q, nil, &items); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		hits := 0
-		for _, it := range db.Items {
-			hay := strings.ToLower(it.Title + " " + it.Command + " " + strings.Join(it.Tags, " ") + " " + it.Notes)
-			if strings.Contains(hay, q) {
-				hits++
-				tagStr := ""
-				if len(it.Tags) > 0 {
-					tagStr = " [" + strings.Join(it.Tags, ",") + "]"
-				}
-				fmt.Printf("%d) %s%s\n", it.ID, it.Title, tagStr)
-			}
-		}
-		if hits == 0 {
+
+		if len(items) == 0 {
 			fmt.Println("(no matches)")
+			return
+		}
+
+		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+
+		for _, it := range items{
+			tagStr  := ""
+			if len(it.Tags) > 0 {
+				tagStr = " [" + strings.Join(it.Tags, ",") + "]"
+			}
+			fmt.Printf("%d) %s%s\n", it.ID, it.Title, tagStr)
 		}
 
 	case "show":
@@ -247,16 +273,20 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		db, err := loadDB()
-		if err != nil {
+		
+		c := api.New()
+
+		var it Item
+
+		if err := c.DoJSON("GET", fmt.Sprintf("/v1/commands/%d", id), nil, &it); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				fmt.Fprintln(os.Stderr, "not found")
+				os.Exit(3)
+			}
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		it, _ := findByID(&db, id)
-		if it == nil {
-			fmt.Fprintln(os.Stderr, "not found")
-			os.Exit(3)
-		}
+
 		fmt.Printf("#%d %s\n", it.ID, it.Title)
 		if len(it.Tags) > 0 {
 			fmt.Printf("Tags: %s\n", strings.Join(it.Tags, ", "))
@@ -272,16 +302,19 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		db, err := loadDB()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
+
+		c := api.New()
+		var it Item
+		
+		if  err := c.DoJSON("GET", fmt.Sprintf("/v1/commands/%d", id), nil, &it); err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+				fmt.Fprintln(os.Stderr, "not found")
+				os.Exit(3)
+			}
+			fmt.Fprintf(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		it, _ := findByID(&db, id)
-		if it == nil {
-			fmt.Fprintln(os.Stderr, "not found")
-			os.Exit(3)
-		}
+
 		if err := pbcopy(it.Command); err != nil {
 			fmt.Fprintln(os.Stderr, "error copying:", err)
 			os.Exit(4)
@@ -294,22 +327,26 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		db, err := loadDB()
-		if err != nil {
+		
+		c := api.New()
+		var it Item
+
+		if err := c.DoJSON("GET", fmt.Sprintf("/v1/commands/%d", id), nil, &it); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				fmt.Fprintln(os.Stderr, "not found")
+				os.Exit(3)
+			}
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		it, _ := findByID(&db, id)
-		if it == nil {
-			fmt.Fprintln(os.Stderr, "not found")
-			os.Exit(3)
-		}
+
 		// Use login shell so user's PATH etc works.
-		c := exec.Command("/bin/zsh", "-lc", it.Command)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		c.Stdin = os.Stdin
-		if err := c.Run(); err != nil {
+		cmdExec := exec.Command("/bin/zsh", "-lc", it.Command)
+		cmdExec.Stdout = os.Stdout
+		cmdExec.Stderr = os.Stderr
+		cmdExec.Stdin = os.Stdin
+
+		if err := cmdExec.Run(); err != nil {
 			// return underlying exit code if any
 			var ee *exec.ExitError
 			if errors.As(err, &ee) {
@@ -319,27 +356,25 @@ func main() {
 			os.Exit(5)
 		}
 
+
 	case "rm":
 		id, err := requireID(os.Args)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		db, err := loadDB()
-		if err != nil {
+		
+		c := api.New()
+
+		if err := c.DoJSON("DELETE", fmt.Sprintf("/v1/commands/%d", id), nil, nil); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				fmt.Fprintln(os.Stderr, "not found")
+				os.Exit(3)
+			}
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		_, idx := findByID(&db, id)
-		if idx < 0 {
-			fmt.Fprintln(os.Stderr, "not found")
-			os.Exit(3)
-		}
-		db.Items = append(db.Items[:idx], db.Items[idx+1:]...)
-		if err := saveDB(db); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(2)
-		}
+
 		fmt.Printf("Removed #%d\n", id)
 
 	default:
