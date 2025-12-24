@@ -228,11 +228,7 @@ func main() {
 		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 
 		for _, it := range items{
-			tagStr  := ""
-			if len(it.Tags) > 0 {
-				tagStr = " [" + strings.Join(it.Tags, ",") + "]"
-			}
-			fmt.Printf("%d) %s%s\n", it.ID, it.Title, tagStr)
+			fmt.Printf("\033[32m%d)\033[0m \033[36m%s\033[0m      (\033[33m%s\033[0m)\n", it.ID, it.Command, it.Title)
 		}
 
 	case "search":
