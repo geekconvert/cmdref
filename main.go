@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"cmdref/api"
-	"cmdref/auth"
+	"commandref/api"
+	"commandref/auth"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -38,7 +38,7 @@ func dbPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".cmdref", "commands.json"), nil
+	return filepath.Join(home, ".commandref", "commands.json"), nil
 }
 
 func ensureDir() error {
@@ -130,21 +130,21 @@ func findByID(db *DB, id int) (*Item, int) {
 }
 
 func usage() {
-	fmt.Print(`cmdref - save and recall important terminal commands
+	fmt.Print(`commandref - save and recall important terminal commands
 
 Usage:
-  cmdref add    --title "..." --cmd "..." [--tags t1,t2] [--notes "..."]
-  cmdref list
-  cmdref search <query>
-  cmdref show <id>
-  cmdref copy <id>     (macOS clipboard via pbcopy)
-  cmdref run  <id>     (executes using: /bin/zsh -lc "<command>")
-  cmdref rm   <id>
+  commandref add    --title "..." --cmd "..." [--tags t1,t2] [--notes "..."]
+  commandref list
+  commandref search <query>
+  commandref show <id>
+  commandref copy <id>     (macOS clipboard via pbcopy)
+  commandref run  <id>     (executes using: /bin/zsh -lc "<command>")
+  commandref rm   <id>
 
 Examples:
-  cmdref add --title "List files" --cmd "ls -la" --tags shell,mac
-  cmdref search adb
-  cmdref copy 2
+  commandref add --title "List files" --cmd "ls -la" --tags shell,mac
+  commandref search adb
+  commandref copy 2
 `)
 }
 
@@ -158,7 +158,7 @@ func main() {
 
 	switch cmd {
 	case "login":
-		if err := auth.Login();err != nil {
+		if err := auth.Login(); err != nil {
 			fmt.Println("Login failed:", err)
 			os.Exit(1)
 		}
@@ -171,13 +171,13 @@ func main() {
 			os.Exit(2)
 		}
 		if s == nil {
-			fmt.Println("Not logged in. Run: cmdref login")
+			fmt.Println("Not logged in. Run: commandref login")
 			return
 		}
 		fmt.Println("Logged in as:", s.Email)
 
 	case "logout":
-		if err:= auth.ClearSession(); err != nil {
+		if err := auth.ClearSession(); err != nil {
 			fmt.Println("error:", err)
 			os.Exit(2)
 		}
@@ -221,13 +221,13 @@ func main() {
 			os.Exit(2)
 		}
 		if len(items) == 0 {
-			fmt.Println("(empty) add one with: cmdref add --title ... --cmd ...")
+			fmt.Println("(empty) add one with: commandref add --title ... --cmd ...")
 			return
 		}
 		// stable order by ID (backend already does it, but safe)
 		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 
-		for _, it := range items{
+		for _, it := range items {
 			fmt.Printf("\033[32m%d)\033[0m \033[36m%s\033[0m      (\033[33m%s\033[0m)\n", it.ID, it.Command, it.Title)
 		}
 
@@ -255,8 +255,8 @@ func main() {
 
 		sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 
-		for _, it := range items{
-			tagStr  := ""
+		for _, it := range items {
+			tagStr := ""
 			if len(it.Tags) > 0 {
 				tagStr = " [" + strings.Join(it.Tags, ",") + "]"
 			}
@@ -269,7 +269,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		
+
 		c := api.New()
 
 		var it Item
@@ -301,8 +301,8 @@ func main() {
 
 		c := api.New()
 		var it Item
-		
-		if  err := c.DoJSON("GET", fmt.Sprintf("/v1/commands/%d", id), nil, &it); err != nil {
+
+		if err := c.DoJSON("GET", fmt.Sprintf("/v1/commands/%d", id), nil, &it); err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "not found") {
 				fmt.Fprintln(os.Stderr, "not found")
 				os.Exit(3)
@@ -323,7 +323,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		
+
 		c := api.New()
 		var it Item
 
@@ -352,14 +352,13 @@ func main() {
 			os.Exit(5)
 		}
 
-
 	case "rm":
 		id, err := requireID(os.Args)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(2)
 		}
-		
+
 		c := api.New()
 
 		if err := c.DoJSON("DELETE", fmt.Sprintf("/v1/commands/%d", id), nil, nil); err != nil {

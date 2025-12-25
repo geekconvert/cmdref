@@ -29,7 +29,7 @@ type GoogleTokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func LoginWithGooglePKCE(clientID string) (*CmdrefAuthResponse, error) {
+func LoginWithGooglePKCE(clientID string) (*CommandrefAuthResponse, error) {
 	verifier, err := randomBase64URL(64) // 43..128 chars (64 is fine)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func LoginWithGooglePKCE(clientID string) (*CmdrefAuthResponse, error) {
 			http.Error(w, "Invalid state", http.StatusBadRequest)
 			return
 		}
-		
+
 		if errStr := q.Get("error"); errStr != "" {
 			desc := q.Get("error_description")
 			http.Error(w, "Login error: "+errStr+" "+desc, http.StatusBadRequest)
@@ -90,7 +90,7 @@ func LoginWithGooglePKCE(clientID string) (*CmdrefAuthResponse, error) {
 	// 2) Build auth URL and open browser
 	authURL := buildGoogleAuthURL(clientID, redirectURI, state, challenge)
 	fmt.Println("Opening browser for Google login...")
-	fmt.Println("authURL: ",authURL) // fallback in case browser open fails
+	fmt.Println("authURL: ", authURL) // fallback in case browser open fails
 
 	_ = openBrowser(authURL)
 
@@ -144,9 +144,9 @@ func exchangeCodeForTokens(clientID, code, verifier, redirectURI string) (*Googl
 
 	req, _ := http.NewRequest("POST", "https://oauth2.googleapis.com/token", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	fmt.Println("req:", req)
-	
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err

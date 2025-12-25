@@ -9,9 +9,9 @@ import (
 )
 
 type Session struct {
-	Token string `json:"token"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	Token     string `json:"token"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
 	CreatedAt string `json:"createdAt"`
 }
 
@@ -20,10 +20,10 @@ func sessionPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".cmdref", "session.json"), nil
+	return filepath.Join(home, ".commandref", "session.json"), nil
 }
 
-func ensureCmdrefDir() error{
+func ensureCommandrefDir() error {
 	p, err := sessionPath()
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func SaveSession(s Session) error {
 		return fmt.Errorf("empty token")
 	}
 
-	if err := ensureCmdrefDir(); err != nil {
+	if err := ensureCommandrefDir(); err != nil {
 		return err
 	}
 
@@ -64,7 +64,7 @@ func SaveSession(s Session) error {
 	return os.Rename(tmp, p)
 }
 
-func LoadSession() (*Session, error){
+func LoadSession() (*Session, error) {
 	p, err := sessionPath()
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func LoadSession() (*Session, error){
 	return &s, nil
 }
 
-func ClearSession() error{
+func ClearSession() error {
 	p, err := sessionPath()
 	if err != nil {
 		return err

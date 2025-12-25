@@ -2,7 +2,7 @@ package api
 
 import (
 	"bytes"
-	"cmdref/auth"
+	"commandref/auth"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +15,7 @@ type Client struct {
 }
 
 func New() *Client {
-	base := os.Getenv("CMDREF_API_BASE")
+	base := os.Getenv("COMMANDREF_API_BASE")
 	if base == "" {
 		base = "http://127.0.0.1:8080"
 	}
@@ -28,7 +28,7 @@ func (c *Client) DoJSON(method, path string, in any, out any) error {
 		return err
 	}
 	if sess == nil || sess.Token == "" {
-		return fmt.Errorf("not logged in. run: cmdref login")
+		return fmt.Errorf("not logged in. run: commandref login")
 	}
 
 	var body io.Reader

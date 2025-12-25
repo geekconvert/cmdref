@@ -9,15 +9,15 @@ import (
 	"os"
 )
 
-type CmdrefAuthResponse struct {
-	Token   string `json:"token"`   // your cmdref JWT
+type CommandrefAuthResponse struct {
+	Token   string `json:"token"` // your commandref JWT
 	Email   string `json:"email"`
 	Name    string `json:"name"`
 	Picture string `json:"picture"`
 }
 
-func exchangeViaBackend(code, verifier, redirectURI string) (*CmdrefAuthResponse, error) {
-	apiBase := os.Getenv("CMDREF_API_BASE")
+func exchangeViaBackend(code, verifier, redirectURI string) (*CommandrefAuthResponse, error) {
+	apiBase := os.Getenv("COMMANDREF_API_BASE")
 	if apiBase == "" {
 		apiBase = "http://127.0.0.1:8080"
 	}
@@ -43,7 +43,7 @@ func exchangeViaBackend(code, verifier, redirectURI string) (*CmdrefAuthResponse
 		return nil, fmt.Errorf("backend exchange failed: %s", string(body))
 	}
 
-	var out CmdrefAuthResponse
+	var out CommandrefAuthResponse
 	if err := json.Unmarshal(body, &out); err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func exchangeViaBackend(code, verifier, redirectURI string) (*CmdrefAuthResponse
 		return nil, fmt.Errorf("backend returned empty token")
 	}
 
-	fmt.Println("out.Token : " , out.Token)
-	
+	fmt.Println("out.Token : ", out.Token)
+
 	return &out, nil
 }

@@ -21,9 +21,9 @@ type TokenResponse struct {
 	IDToken      string `json:"id_token"`
 
 	// Error fields (device flow)
-	Error        string `json:"error"`
-	ErrorDesc    string `json:"error_description"`
-	ErrorURI     string `json:"error_uri"`
+	Error     string `json:"error"`
+	ErrorDesc string `json:"error_description"`
+	ErrorURI  string `json:"error_uri"`
 }
 
 // Poll Google until user approves (or timeout / denial)
@@ -73,24 +73,24 @@ func pollForToken(clientID, deviceCode string, intervalSec, expiresInSec int) (*
 
 		// Expected device-flow states
 		switch tr.Error {
-			case "authorization_pending":
-				// user hasn't approved yet; keep polling
-				continue
-			case "slow_down":
-				// back off a bit
-				interval += 5 * time.Second
-				continue
-			case "access_denied":
-				return nil, fmt.Errorf("login cancelled by user")
-			case "expired_token":
-				return nil, fmt.Errorf("device code expired; run login again")
-			case "invalid_client":
-				return nil, fmt.Errorf("invalid client_id (check Google OAuth client type)")
-			case "":
-				// Sometimes you may get non-JSON errors; surface raw body
-				return nil, fmt.Errorf("unexpected token response: %s", string(body))
-			default:
-				return nil, fmt.Errorf("token error: %s (%s)", tr.Error, tr.ErrorDesc)
+		case "authorization_pending":
+			// user hasn't approved yet; keep polling
+			continue
+		case "slow_down":
+			// back off a bit
+			interval += 5 * time.Second
+			continue
+		case "access_denied":
+			return nil, fmt.Errorf("login cancelled by user")
+		case "expired_token":
+			return nil, fmt.Errorf("device code expired; run login again")
+		case "invalid_client":
+			return nil, fmt.Errorf("invalid client_id (check Google OAuth client type)")
+		case "":
+			// Sometimes you may get non-JSON errors; surface raw body
+			return nil, fmt.Errorf("unexpected token response: %s", string(body))
+		default:
+			return nil, fmt.Errorf("token error: %s (%s)", tr.Error, tr.ErrorDesc)
 		}
 	}
 
